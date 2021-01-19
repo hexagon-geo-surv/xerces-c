@@ -1276,7 +1276,7 @@ void XMLScanner::scanProlog()
 #ifdef WINCE
                     // WinCE does NOT support env variables
                     // Actually XERCES_DISABLE_DTD is not used at all
-                    const char* envvar = NULL; //getenv("XERCES_DISABLE_DTD");
+                    const char* envvar = NULL;
 #else
                     const char* envvar = getenv("XERCES_DISABLE_DTD");
 #endif
