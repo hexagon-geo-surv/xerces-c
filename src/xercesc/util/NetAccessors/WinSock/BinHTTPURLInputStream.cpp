@@ -193,12 +193,20 @@ void BinHTTPURLInputStream::Initialize(MemoryManager* const manager)
     LPFN_WSASTARTUP startup = NULL;
     if(gWinsockLib == NULL)
     {
-#ifdef WITH_IPV6
-      gWinsockLib = LoadLibraryA("WS2_32");
+#ifdef WINCE
+    #ifdef WITH_IPV6
+            gWinsockLib = LoadLibraryW(L"WS2_32");
+    #else
+            gWinsockLib = LoadLibraryW(L"WSOCK32");
+    #endif
 #else
-      gWinsockLib = LoadLibraryW(L"WSOCK32");
+    #ifdef WITH_IPV6
+          gWinsockLib = LoadLibraryA("WS2_32");
+    #else
+          gWinsockLib = LoadLibraryW(L"WSOCK32");
+    #endif
 #endif
-      if(gWinsockLib == NULL)
+          if(gWinsockLib == NULL)
       {
           ThrowXMLwithMemMgr(NetAccessorException, XMLExcepts::NetAcc_InitFailed, manager);
       }
