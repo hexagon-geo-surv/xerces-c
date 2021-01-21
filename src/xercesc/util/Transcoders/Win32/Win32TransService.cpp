@@ -52,7 +52,11 @@ static const XMLCh gMyServiceId[] =
 void _wcsupr(LPWSTR str)
 {
     int nLen=XMLString::stringLen(str);
+#ifdef WINCE
+    ::LCMapStringW(GetUserDefaultLCID(), LCMAP_UPPERCASE, str, nLen, str, nLen);
+#else
     ::LCMapStringW( GetThreadLocale(), LCMAP_UPPERCASE, str, nLen, str, nLen);
+#endif
 }
 #endif
 
@@ -60,7 +64,11 @@ void _wcsupr(LPWSTR str)
 void _wcslwr(LPWSTR str)
 {
     int nLen=XMLString::stringLen(str);
+#ifdef WINCE
+    ::LCMapStringW( GetUserDefaultLCID(), LCMAP_LOWERCASE, str, nLen, str, nLen);
+#else
     ::LCMapStringW( GetThreadLocale(), LCMAP_LOWERCASE, str, nLen, str, nLen);
+#endif
 }
 #endif
 
@@ -104,8 +112,13 @@ int _wcsnicmp(LPCWSTR comp1, LPCWSTR comp2, unsigned int nLen)
     memcpy( secondBuf, comp2, otherLen * sizeof(XMLCh));
 
     // Then uppercase both strings, losing their case info.
+#ifdef WINCE
+    ::LCMapStringW( GetUserDefaultLCID(), LCMAP_UPPERCASE, (LPWSTR)firstBuf, len, (LPWSTR)firstBuf, len);
+    ::LCMapStringW( GetUserDefaultLCID(), LCMAP_UPPERCASE, (LPWSTR)secondBuf, otherLen, (LPWSTR)secondBuf, otherLen);
+#else
     ::LCMapStringW( GetThreadLocale(), LCMAP_UPPERCASE, (LPWSTR)firstBuf, len, (LPWSTR)firstBuf, len);
     ::LCMapStringW( GetThreadLocale(), LCMAP_UPPERCASE, (LPWSTR)secondBuf, otherLen, (LPWSTR)secondBuf, otherLen);
+#endif
 
     // Strings are equal until proven otherwise.
     while ( ( countChar < maxChars ) && ( !theResult ) )
@@ -162,10 +175,10 @@ bool isAlias(const   HKEY            encodingKey
 {
     DWORD theType;
     DWORD theSize = nameBufSz;
-    return (::RegQueryValueExA
+    return (::RegQueryValueExW
     (
         encodingKey
-        , "AliasForCharset"
+        , L"AliasForCharset"
         , 0
         , &theType
         , (LPBYTE)aliasBuf
@@ -301,33 +314,35 @@ unsigned int CPMapEntry::getIEEncoding() const
 static bool onXPOrLater = false;
 
 
+
 //---------------------------------------------------------------------------
 //
 //  class Win32TransService Implementation ...
 //
 //---------------------------------------------------------------------------
 
-
+#ifdef WINCE
 // ---------------------------------------------------------------------------
 //  Win32TransService: Constructors and Destructor
 // ---------------------------------------------------------------------------
 Win32TransService::Win32TransService(MemoryManager* manager) :
-    fCPMap(NULL)
-    , fManager(manager)
+    m_fCPMap(NULL)
+    , m_fManager(manager)
 {
     // Figure out if we are on XP or later and save that flag for later use.
     // We need this because of certain code page conversion calls.
-    OSVERSIONINFO   OSVer;
-    OSVer.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    ::GetVersionEx(&OSVer);
+    OSVERSIONINFOW   OSVer;
+    OSVer.dwOSVersionInfoSize = sizeof(OSVERSIONINFOW);
+    ::GetVersionExW(&OSVer);
 
-    if ((OSVer.dwPlatformId == VER_PLATFORM_WIN32_NT) &&
-        (OSVer.dwMajorVersion > 5 || (OSVer.dwMajorVersion == 5 && OSVer.dwMinorVersion > 0)))
+    if ((OSVer.dwPlatformId == VER_PLATFORM_WIN32_CE) ||
+        ((OSVer.dwPlatformId == VER_PLATFORM_WIN32_NT) &&
+        (OSVer.dwMajorVersion > 5 || (OSVer.dwMajorVersion == 5 && OSVer.dwMinorVersion > 0))))
     {
         onXPOrLater = true;
     }
 
-    fCPMap = new RefHashTableOf<CPMapEntry>(109);
+    m_fCPMap = new RefHashTableOf<CPMapEntry>(109);
 
     //
     //  Open up the registry key that contains the info we want. Note that,
@@ -336,10 +351,10 @@ Win32TransService::Win32TransService(MemoryManager* manager) :
     //  by the parser itself (and the LCP support of course.
     //
     HKEY charsetKey;
-    if (::RegOpenKeyExA
+    if (::RegOpenKeyExW
     (
         HKEY_CLASSES_ROOT
-        , "MIME\\Database\\Charset"
+        , L"MIME\\Database\\Charset"
         , 0
         , KEY_READ
         , &charsetKey))
@@ -357,14 +372,14 @@ Win32TransService::Win32TransService(MemoryManager* manager) :
     //  98, and transcode the strings to Unicode.
     //
     const unsigned int nameBufSz = 1024;
-    char nameBuf[nameBufSz + 1];
+    wchar_t nameBuf[nameBufSz + 1];
     DWORD subIndex;
     DWORD theSize;
     for (subIndex = 0;;++subIndex)
     {
         // Get the name of the next key
         theSize = nameBufSz;
-        if (::RegEnumKeyExA
+        if (::RegEnumKeyExW
         (
             charsetKey
             , subIndex
@@ -377,7 +392,7 @@ Win32TransService::Win32TransService(MemoryManager* manager) :
 
         // Open this subkey
         HKEY encodingKey;
-        if (::RegOpenKeyExA
+        if (::RegOpenKeyExW
         (
             charsetKey
             , nameBuf
@@ -407,10 +422,10 @@ Win32TransService::Win32TransService(MemoryManager* manager) :
             unsigned int IEId;
 
             theSize = sizeof(unsigned int);
-            if (::RegQueryValueExA
+            if (::RegQueryValueExW
             (
                 encodingKey
-                , "Codepage"
+                , L"Codepage"
                 , 0
                 , &theType
                 , (LPBYTE)&CPId
@@ -427,10 +442,10 @@ Win32TransService::Win32TransService(MemoryManager* manager) :
             if (::IsValidCodePage(CPId))
             {
                 theSize = sizeof(unsigned int);
-                if (::RegQueryValueExA
+                if (::RegQueryValueExW
                 (
                     encodingKey
-                    , "InternetEncoding"
+                    , L"InternetEncoding"
                     , 0
                     , &theType
                     , (LPBYTE)&IEId
@@ -440,8 +455,8 @@ Win32TransService::Win32TransService(MemoryManager* manager) :
                     continue;
                 }
 
-                CPMapEntry* newEntry = new (fManager) CPMapEntry(nameBuf, IEId, fManager);
-                fCPMap->put((void*)newEntry->getEncodingName(), newEntry);
+                CPMapEntry* newEntry = new (m_fManager) CPMapEntry(nameBuf, IEId, m_fManager);
+                m_fCPMap->put((void*)newEntry->getEncodingName(), newEntry);
             }
         }
 
@@ -460,7 +475,7 @@ Win32TransService::Win32TransService(MemoryManager* manager) :
     {
         // Get the name of the next key
         theSize = nameBufSz;
-        if (::RegEnumKeyExA
+        if (::RegEnumKeyExW
         (
             charsetKey
             , subIndex
@@ -473,7 +488,7 @@ Win32TransService::Win32TransService(MemoryManager* manager) :
 
         // Open this subkey
         HKEY encodingKey;
-        if (::RegOpenKeyExA
+        if (::RegOpenKeyExW
         (
             charsetKey
             , nameBuf
@@ -494,7 +509,7 @@ Win32TransService::Win32TransService(MemoryManager* manager) :
             int targetLen = ::MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, aliasBuf, -1, NULL, 0);
             if(targetLen!=0)
             {
-                XMLCh* uniAlias = (XMLCh*) fManager->allocate
+                XMLCh* uniAlias = (XMLCh*) m_fManager->allocate
                 (
                     (targetLen + 1) * sizeof(XMLCh)
                 );//new XMLCh[targetLen + 1];
@@ -503,35 +518,18 @@ Win32TransService::Win32TransService(MemoryManager* manager) :
                 xmlch_wcsupr(uniAlias);
 
                 // Look up the alias name
-                CPMapEntry* aliasedEntry = fCPMap->get(uniAlias);
+                CPMapEntry* aliasedEntry = m_fCPMap->get(uniAlias);
                 if (aliasedEntry)
                 {
-                    int targetLen = ::MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, nameBuf, -1, NULL, 0);
-                    if(targetLen!=0)
+                    // nameBuf is in UNICODE already, use it directly.
+                    // No need to convert it to UNICODE
+                    if (!XMLString::equals(nameBuf, aliasedEntry->getEncodingName()))
                     {
-                        XMLCh* uniName = (XMLCh*) fManager->allocate
-                        (
-                            (targetLen + 1) * sizeof(XMLCh)
-                        );//new XMLCh[targetLen + 1];
-                        ::MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, nameBuf, -1, (LPWSTR)uniName, targetLen);
-                        uniName[targetLen] = 0;
-                        xmlch_wcsupr(uniName);
-
-                        //
-                        //  If the name is actually different, then take it.
-                        //  Otherwise, don't take it. They map aliases that are
-                        //  just different case.
-                        //
-						if (!XMLString::equals(uniName, aliasedEntry->getEncodingName()))
-                        {
-                            CPMapEntry* newEntry = new (fManager) CPMapEntry(uniName, aliasedEntry->getIEEncoding(), fManager);
-                            fCPMap->put((void*)newEntry->getEncodingName(), newEntry);
-                        }
-
-                        fManager->deallocate(uniName);//delete [] uniName;
+                        CPMapEntry* newEntry = new (m_fManager) CPMapEntry(nameBuf, aliasedEntry->getIEEncoding(), m_fManager);
+                        m_fCPMap->put((void*)newEntry->getEncodingName(), newEntry);
                     }
                 }
-                fManager->deallocate(uniAlias);//delete [] uniAlias;
+                m_fManager->deallocate(uniAlias);//delete [] uniAlias;
             }
         }
 
@@ -542,10 +540,247 @@ Win32TransService::Win32TransService(MemoryManager* manager) :
     // And close the main key handle
     ::RegCloseKey(charsetKey);
 }
+#else
+// ---------------------------------------------------------------------------
+//  Win32TransService: Constructors and Destructor
+// ---------------------------------------------------------------------------
+Win32TransService::Win32TransService(MemoryManager* manager) :
+m_fCPMap(NULL)
+, m_fManager(manager)
+{
+    // Figure out if we are on XP or later and save that flag for later use.
+    // We need this because of certain code page conversion calls.
+    OSVERSIONINFO   OSVer;
+    OSVer.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+    ::GetVersionEx(&OSVer);
+
+    if ((OSVer.dwPlatformId == VER_PLATFORM_WIN32_NT) &&
+        (OSVer.dwMajorVersion > 5 || (OSVer.dwMajorVersion == 5 && OSVer.dwMinorVersion > 0)))
+    {
+        onXPOrLater = true;
+    }
+
+    m_fCPMap = new RefHashTableOf<CPMapEntry>(109);
+
+    //
+    //  Open up the registry key that contains the info we want. Note that,
+    //  if this key does not exist, then we just return. It will just mean
+    //  that we don't have any support except for intrinsic encodings supported
+    //  by the parser itself (and the LCP support of course.
+    //
+    HKEY charsetKey;
+    if (::RegOpenKeyExA
+        (
+        HKEY_CLASSES_ROOT
+        , "MIME\\Database\\Charset"
+        , 0
+        , KEY_READ
+        , &charsetKey))
+    {
+        return;
+    }
+
+    //
+    //  Read in the registry keys that hold the code page ids. Skip for now
+    //  those entries which indicate that they are aliases for some other
+    //  encodings. We'll come back and do a second round for those and look
+    //  up the original name and get the code page id.
+    //
+    //  Note that we have to use A versions here so that this will run on
+    //  98, and transcode the strings to Unicode.
+    //
+    const unsigned int nameBufSz = 1024;
+    char nameBuf[nameBufSz + 1];
+    DWORD subIndex;
+    DWORD theSize;
+    for (subIndex = 0;;++subIndex)
+    {
+        // Get the name of the next key
+        theSize = nameBufSz;
+        if (::RegEnumKeyExA
+            (
+            charsetKey
+            , subIndex
+            , nameBuf
+            , &theSize
+            , 0, 0, 0, 0) == ERROR_NO_MORE_ITEMS)
+        {
+            break;
+        }
+
+        // Open this subkey
+        HKEY encodingKey;
+        if (::RegOpenKeyExA
+            (
+            charsetKey
+            , nameBuf
+            , 0
+            , KEY_READ
+            , &encodingKey))
+        {
+            continue;
+        }
+
+        //
+        //  Let's see if its an alias. If so, then ignore it in this first
+        //  loop. Else, we'll add a new entry for this one.
+        //
+        if (!isAlias(encodingKey))
+        {
+            //
+            //  Lets get the two values out of this key that we are
+            //  interested in. There should be a code page entry and an
+            //  IE entry.
+            //
+            //  The Codepage entry is the default code page for a computer using that charset
+            //  while the InternetEncoding holds the code page that represents that charset
+            //
+            DWORD theType;
+            unsigned int CPId;
+            unsigned int IEId;
+
+            theSize = sizeof(unsigned int);
+            if (::RegQueryValueExA
+                (
+                encodingKey
+                , "Codepage"
+                , 0
+                , &theType
+                , (LPBYTE)&CPId
+                , &theSize) != ERROR_SUCCESS)
+            {
+                ::RegCloseKey(encodingKey);
+                continue;
+            }
+
+            //
+            //  If this is not a valid Id, and it might not be because its
+            //  not loaded on this system, then don't take it.
+            //
+            if (::IsValidCodePage(CPId))
+            {
+                theSize = sizeof(unsigned int);
+                if (::RegQueryValueExA
+                    (
+                    encodingKey
+                    , "InternetEncoding"
+                    , 0
+                    , &theType
+                    , (LPBYTE)&IEId
+                    , &theSize) != ERROR_SUCCESS)
+                {
+                    ::RegCloseKey(encodingKey);
+                    continue;
+                }
+
+                CPMapEntry* newEntry = new (m_fManager) CPMapEntry(nameBuf, IEId, m_fManager);
+                m_fCPMap->put((void*)newEntry->getEncodingName(), newEntry);
+            }
+        }
+
+        // And close the subkey handle
+        ::RegCloseKey(encodingKey);
+    }
+
+    //
+    //  Now loop one more time and this time we do just the aliases. For
+    //  each one we find, we look up that name in the map we've already
+    //  built and add a new entry with this new name and the same id
+    //  values we stored for the original.
+    //
+    char aliasBuf[nameBufSz + 1];
+    for (subIndex = 0;;++subIndex)
+    {
+        // Get the name of the next key
+        theSize = nameBufSz;
+        if (::RegEnumKeyExA
+            (
+            charsetKey
+            , subIndex
+            , nameBuf
+            , &theSize
+            , 0, 0, 0, 0) == ERROR_NO_MORE_ITEMS)
+        {
+            break;
+        }
+
+        // Open this subkey
+        HKEY encodingKey;
+        if (::RegOpenKeyExA
+            (
+            charsetKey
+            , nameBuf
+            , 0
+            , KEY_READ
+            , &encodingKey))
+        {
+            continue;
+        }
+
+        //
+        //  If it's an alias, look up the name in the map. If we find it,
+        //  then construct a new one with the new name and the aliased
+        //  ids.
+        //
+        if (isAlias(encodingKey, aliasBuf, nameBufSz))
+        {
+            int targetLen = ::MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, aliasBuf, -1, NULL, 0);
+            if(targetLen!=0)
+            {
+                XMLCh* uniAlias = (XMLCh*) m_fManager->allocate
+                    (
+                    (targetLen + 1) * sizeof(XMLCh)
+                    );//new XMLCh[targetLen + 1];
+                ::MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, aliasBuf, -1, (LPWSTR)uniAlias, targetLen);
+                uniAlias[targetLen] = 0;
+                xmlch_wcsupr(uniAlias);
+
+                // Look up the alias name
+                CPMapEntry* aliasedEntry = m_fCPMap->get(uniAlias);
+                if (aliasedEntry)
+                {
+                    int targetLen = ::MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, nameBuf, -1, NULL, 0);
+                    if(targetLen!=0)
+                    {
+                        XMLCh* uniName = (XMLCh*) m_fManager->allocate
+                            (
+                            (targetLen + 1) * sizeof(XMLCh)
+                            );//new XMLCh[targetLen + 1];
+                        ::MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, nameBuf, -1, (LPWSTR)uniName, targetLen);
+                        uniName[targetLen] = 0;
+                        xmlch_wcsupr(uniName);
+
+                        //
+                        //  If the name is actually different, then take it.
+                        //  Otherwise, don't take it. They map aliases that are
+                        //  just different case.
+                        //
+                        if (!XMLString::equals(uniName, aliasedEntry->getEncodingName()))
+                        {
+                            CPMapEntry* newEntry = new (m_fManager) CPMapEntry(uniName, aliasedEntry->getIEEncoding(), m_fManager);
+                            m_fCPMap->put((void*)newEntry->getEncodingName(), newEntry);
+                        }
+
+                        m_fManager->deallocate(uniName);//delete [] uniName;
+                    }
+                }
+                m_fManager->deallocate(uniAlias);//delete [] uniAlias;
+            }
+        }
+
+        // And close the subkey handle
+        ::RegCloseKey(encodingKey);
+    }
+
+    // And close the main key handle
+    ::RegCloseKey(charsetKey);
+}
+#endif
+
 
 Win32TransService::~Win32TransService()
 {
-    delete fCPMap;
+    delete m_fCPMap;
 }
 
 
@@ -617,7 +852,7 @@ Win32TransService::makeNewXMLTranscoder(const   XMLCh* const            encoding
     xmlch_wcsupr(upEncoding);
 
     // Now to try to find this guy in the CP map
-    CPMapEntry* theEntry = fCPMap->get(upEncoding);
+    CPMapEntry* theEntry = m_fCPMap->get(upEncoding);
 
     // If not found, then return a null pointer
     if (!theEntry)

@@ -40,6 +40,10 @@
 #include <errno.h>
 #include <assert.h>
 
+#ifdef WINCE
+#include "wce_errno.h"
+#endif
+
 #include <xercesc/util/XMLString.hpp>
 #include <xercesc/util/ArrayIndexOutOfBoundsException.hpp>
 #include <xercesc/util/IllegalArgumentException.hpp>

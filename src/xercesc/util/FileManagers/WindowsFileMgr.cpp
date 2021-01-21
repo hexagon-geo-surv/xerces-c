@@ -26,6 +26,10 @@
 #include <xercesc/util/XMLString.hpp>
 #include <xercesc/util/XMLUniDefs.hpp>
 
+#ifdef WINCE
+#include "wce_winbase.h"
+#endif
+
 #ifndef INVALID_SET_FILE_POINTER
 #define INVALID_SET_FILE_POINTER ((DWORD)-1)
 #endif
@@ -41,10 +45,14 @@ static bool isBackSlash(XMLCh c) {
 WindowsFileMgr::WindowsFileMgr()
 {
     // Figure out if we are on NT and save that flag for later use
-    OSVERSIONINFO   OSVer;
-    OSVer.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    ::GetVersionEx(&OSVer);
-    _onNT = (OSVer.dwPlatformId == VER_PLATFORM_WIN32_NT);
+    OSVERSIONINFOW   OSVer;
+    OSVer.dwOSVersionInfoSize = sizeof(OSVERSIONINFOW);
+    ::GetVersionExW(&OSVer);
+#ifdef WINCE
+    _onNT = OSVer.dwPlatformId == VER_PLATFORM_WIN32_CE;
+#else
+    _onNT = OSVer.dwPlatformId == VER_PLATFORM_WIN32_NT;
+#endif
 }
 
 
@@ -153,6 +161,9 @@ WindowsFileMgr::fileOpen(const XMLCh* fileName, bool toWrite, MemoryManager* con
     }
     else
     {
+        // For WinCE the following code is dead code
+        // Just comment off
+#ifndef WINCE
         //
         //  We are Win 95 / 98.  Take the Unicode file name back to (char *)
         //    so that we can open it.
@@ -169,6 +180,7 @@ WindowsFileMgr::fileOpen(const XMLCh* fileName, bool toWrite, MemoryManager* con
             , 0
             );
         manager->deallocate(tmpName);//delete [] tmpName;
+#endif
     }
 
     if (tmpUName)
@@ -320,6 +332,12 @@ WindowsFileMgr::fileWrite(FileHandle f, XMLSize_t byteCount, const XMLByte* buff
 XMLCh*
 WindowsFileMgr::getFullPath(const XMLCh* const srcPath, MemoryManager* const manager)
 {
+#ifdef WINCE
+    // WinCE has no relative path
+    // srcPath should not be a relative path.
+    // Actually XMLPlatformUtils::getFullPath is NOT referenced/called at all
+    return (XMLCh*)srcPath;
+#else
     //
     //  If we are on NT, then use wide character APIs, else use ASCII APIs.
     //  We have to do it manually since we are only built in ASCII mode from
@@ -355,12 +373,19 @@ WindowsFileMgr::getFullPath(const XMLCh* const srcPath, MemoryManager* const man
         // Return a transcoded copy of the path
         return XMLString::transcode(tmpPath, manager);
     }
+#endif
 }
 
 
 XMLCh*
 WindowsFileMgr::getCurrentDirectory(MemoryManager* const manager)
 {
+#ifdef WINCE
+    // WinCE does not have current directory at all
+    // Actually this function will never be called.
+    // Refer to XMLPlatformUtils::getCurrentDirectory()
+    return NULL;
+#else
     //
     //  If we are on NT, then use wide character APIs, else use ASCII APIs.
     //  We have to do it manually since we are only built in ASCII mode from
@@ -390,12 +415,18 @@ WindowsFileMgr::getCurrentDirectory(MemoryManager* const manager)
         // Return a transcoded copy of the path
         return XMLString::transcode(tmpPath, manager);
     }
+#endif
 }
 
 
 bool
 WindowsFileMgr::isRelative(const XMLCh* const toCheck, MemoryManager* const /*manager*/)
 {
+#ifdef WINCE
+    // No relative path on WinCE
+    return false;
+#endif
+
     // Check for pathological case of empty path
     if (!toCheck || !toCheck[0])
         return false;
