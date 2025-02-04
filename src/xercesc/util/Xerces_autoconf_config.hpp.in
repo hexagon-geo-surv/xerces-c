@@ -87,21 +87,21 @@
 // ---------------------------------------------------------------------------
 //  Include standard headers, if available, that we may rely on below.
 // ---------------------------------------------------------------------------
-#if defined(__cplusplus) && XERCES_HAVE_CSTDINT
+#if defined(__cplusplus) && defined(XERCES_HAVE_CSTDINT)
 #	include <cstdint>
-#elif XERCES_HAVE_STDINT_H
+#elif defined(XERCES_HAVE_STDINT_H)
 #		if defined(__cplusplus)
 #			define __STDC_LIMIT_MACROS
 #		endif
 #		include <stdint.h>
 #endif
-#if XERCES_HAVE_INTTYPES_H
+#ifdef XERCES_HAVE_INTTYPES_H
 #	include <inttypes.h>
 #endif
-#if XERCES_HAVE_SYS_TYPES_H
+#ifdef XERCES_HAVE_SYS_TYPES_H
 #	include <sys/types.h>
 #endif
-#if XERCES_INCLUDE_WCHAR_H
+#ifdef XERCES_INCLUDE_WCHAR_H
 #	include <wchar.h>
 #endif
 

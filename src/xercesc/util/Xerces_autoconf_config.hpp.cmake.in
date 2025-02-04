@@ -95,16 +95,16 @@
 #if defined(__cplusplus) && defined(XERCES_HAVE_CSTDINT)
 #  include <cstdint>
 #endif
-#if XERCES_HAVE_STDINT_H
+#ifdef XERCES_HAVE_STDINT_H
 #  include <stdint.h>
 #endif
-#if XERCES_HAVE_INTTYPES_H
+#ifdef XERCES_HAVE_INTTYPES_H
 #  include <inttypes.h>
 #endif
-#if XERCES_HAVE_SYS_TYPES_H
+#ifdef XERCES_HAVE_SYS_TYPES_H
 #  include <sys/types.h>
 #endif
-#if XERCES_INCLUDE_WCHAR_H
+#ifdef XERCES_INCLUDE_WCHAR_H
 #  include <wchar.h>
 #endif
 
